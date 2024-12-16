@@ -1,5 +1,8 @@
-This is a small Script for Updating the Discord Version on Arch Linux.
-It accesses the build_info.json File and edits the Version Number.
+This is just a fancy GUI for editing the Text File directly.
+It does exactly the same thing, as if you were opening the build_info.json yourself and changing the Version Number there.
+It was created out of lazyness and added a few failchecks for Formatting. (if you forget a dot, accidentially type a comma)
+THIS TOOL DOES NOT UPDATE DISCORD
+It just edits the Version Number in the build_info.json, so the next time you start Discord it updates itself.
 
 In the GUI, you have two Buttons.
 One for the Next Version and one to Enter the Version Number manually.
