@@ -1,0 +1,138 @@
+#!/bin/bash
+
+# Konstanten für Fenstergröße
+WIDTH=500
+HEIGHT=150
+
+# Pfad zur build_info.json
+JSON_FILE="/opt/discord/resources/build_info.json"
+
+# Überprüfen, ob die Datei existiert
+if [ ! -f "$JSON_FILE" ]; then
+    zenity --error \
+        --text="Error: $JSON_FILE nicht gefunden." \
+        --width=$WIDTH \
+        --height=$HEIGHT \
+        --icon-name=discord
+    exit 1
+fi
+
+# Aktuelle Version auslesen
+CURRENT_VERSION=$(grep -oP '"version": "\K[^"]+' "$JSON_FILE")
+
+# Funktion zum Validieren der Versionsnummer
+validate_version() {
+    local version=$1
+    if [[ $version =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+        return 0
+    else
+        return 1
+    fi
+}
+
+# Funktion zum Extrahieren der letzten Nummer und Berechnen der nächsten Version
+get_next_version() {
+    local version=$1
+    local base_version=$(echo $version | sed 's/\([0-9]\+\.[0-9]\+\.\)[0-9]\+/\1/')
+    local last_num=$(echo $version | grep -oP '[0-9]+$')
+    local next_num=$((last_num + 1))
+    echo "${base_version}${next_num}"
+}
+
+# Nächste Version berechnen
+NEXT_VERSION=$(get_next_version "$CURRENT_VERSION")
+
+# Auswahlmenü anzeigen
+CHOICE=$(zenity --question \
+    --title="Discord Version Update" \
+    --text="Aktuelle Version: $CURRENT_VERSION\nWählen Sie die neue Version:" \
+    --ok-label="$NEXT_VERSION" \
+    --cancel-label="Manuelle Eingabe" \
+    --width=$WIDTH \
+    --height=$HEIGHT \
+    --icon-name=discord)
+BUTTON=$?
+
+# Verarbeitung der Buttonauswahl
+case $BUTTON in
+    0) # Erster Button (OK)
+        NEW_VERSION="$NEXT_VERSION"
+        ;;
+    1) # Zweiter Button (Cancel)
+        while true; do
+            NEW_VERSION=$(zenity --entry \
+                --title="Discord Version Update" \
+                --text="Aktuelle Version: $CURRENT_VERSION\nBitte geben Sie die neue Versionsnummer ein (Format: x.x.x):" \
+                --width=$WIDTH \
+                --height=$HEIGHT \
+                --icon-name=discord \
+                --window-icon=discord)
+
+            if [ $? -ne 0 ]; then
+                zenity --info \
+                    --text="Update abgebrochen." \
+                    --width=$WIDTH \
+                    --height=$HEIGHT \
+                    --icon-name=discord
+                exit 0
+            fi
+
+            if validate_version "$NEW_VERSION"; then
+                break
+            else
+                zenity --error \
+                    --text="Ungültiges Versionsformat!\nBitte verwenden Sie das Format: x.x.x\n(z.B. 0.0.77)" \
+                    --width=$WIDTH \
+                    --height=$HEIGHT \
+                    --icon-name=discord
+            fi
+        done
+        ;;
+    *) # Wenn das Fenster geschlossen wurde
+        zenity --info \
+            --text="Update abgebrochen." \
+            --width=$WIDTH \
+            --height=$HEIGHT \
+            --icon-name=discord
+        exit 0
+        ;;
+esac
+
+# Überprüfen, ob eine neue Version eingegeben wurde
+if [ -z "$NEW_VERSION" ]; then
+    zenity --error \
+        --text="Keine Version eingegeben. Update abgebrochen." \
+        --width=$WIDTH \
+        --height=$HEIGHT \
+        --icon-name=discord
+    exit 1
+fi
+
+# Temporäre Datei erstellen
+TMP_FILE=$(mktemp)
+
+# Datei aktualisieren und in temporäre Datei schreiben
+sed 's/"version": "[^"]*"/"version": "'"$NEW_VERSION"'"/' "$JSON_FILE" > "$TMP_FILE"
+
+# sudo-Passwort abfragen und Datei aktualisieren
+if zenity --password \
+    --title="Discord Update" \
+    --text="Bitte geben Sie Ihr Sudo-Passwort ein:" \
+    --width=$WIDTH \
+    --height=$HEIGHT \
+    --icon-name=discord | sudo -S mv "$TMP_FILE" "$JSON_FILE"; then
+    zenity --info \
+        --text="Discord Version wurde auf $NEW_VERSION aktualisiert." \
+        --width=$WIDTH \
+        --height=$HEIGHT \
+        --icon-name=discord
+else
+    zenity --error \
+        --text="Fehler beim Aktualisieren der Datei. Überprüfen Sie Ihre Berechtigungen." \
+        --width=$WIDTH \
+        --height=$HEIGHT \
+        --icon-name=discord
+fi
+
+# Temporäre Datei löschen (falls noch vorhanden)
+rm -f "$TMP_FILE"
